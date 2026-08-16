@@ -8,6 +8,7 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.db import get_db
 from app.main import app
+from app.models import app_release, contribution, correction, user  # noqa: F401
 from app.models.base import Base
 
 test_engine = create_async_engine(settings.database_url, echo=False, poolclass=NullPool)
