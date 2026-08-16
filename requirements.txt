@@ -1,6 +1,7 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.35
+greenlet==3.5.5
 aiomysql==0.2.0
 alembic==1.13.2
 pydantic==2.9.2
