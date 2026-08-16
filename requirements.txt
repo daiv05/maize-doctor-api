@@ -8,6 +8,7 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
 slowapi==0.1.9
 pillow==10.4.0
 python-multipart==0.0.9
