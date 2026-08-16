@@ -1,4 +1,5 @@
 import hashlib
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
@@ -33,7 +34,7 @@ def create_access_token(user_id: str) -> str:
 
 def create_refresh_token(user_id: str) -> tuple[str, datetime]:
     expire = utcnow() + timedelta(days=settings.refresh_token_expire_days)
-    payload = {"sub": user_id, "type": "refresh", "exp": expire}
+    payload = {"sub": user_id, "type": "refresh", "exp": expire, "jti": uuid.uuid4().hex}
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     return token, expire
 
