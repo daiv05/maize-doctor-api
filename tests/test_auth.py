@@ -1,4 +1,17 @@
 import pytest
+from fastapi import HTTPException, status
+
+from app.core.deps import get_current_user
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_with_no_credentials_returns_401():
+    """Test that missing Authorization header raises 401, not 403."""
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(credentials=None, db=None)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Not authenticated"
 
 
 @pytest.mark.asyncio
