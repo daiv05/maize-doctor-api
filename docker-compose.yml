@@ -20,6 +20,8 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    environment:
+      DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/maize_doctor
     depends_on:
       mysql:
         condition: service_healthy
