@@ -1,6 +1,8 @@
 import pytest
 from jose import JWTError
+from starlette.requests import Request
 
+from app.core.rate_limit import user_or_ip_key
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -41,3 +43,53 @@ def test_refresh_token_roundtrip():
 def test_decode_invalid_token_raises():
     with pytest.raises(JWTError):
         decode_token("not-a-real-token")
+
+
+def test_user_or_ip_key_with_valid_access_token():
+    access_token = create_access_token("user-123")
+    request = Request(
+        scope={
+            "type": "http",
+            "headers": [(b"authorization", f"Bearer {access_token}".encode())],
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    result = user_or_ip_key(request)
+    assert result == "user:user-123"
+
+
+def test_user_or_ip_key_with_valid_refresh_token():
+    refresh_token, _ = create_refresh_token("user-123")
+    request = Request(
+        scope={
+            "type": "http",
+            "headers": [(b"authorization", f"Bearer {refresh_token}".encode())],
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    result = user_or_ip_key(request)
+    assert result == "ip:127.0.0.1"
+
+
+def test_user_or_ip_key_with_malformed_token():
+    request = Request(
+        scope={
+            "type": "http",
+            "headers": [(b"authorization", b"Bearer not-a-real-token")],
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    result = user_or_ip_key(request)
+    assert result == "ip:127.0.0.1"
+
+
+def test_user_or_ip_key_without_auth_header():
+    request = Request(
+        scope={
+            "type": "http",
+            "headers": [],
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+    result = user_or_ip_key(request)
+    assert result == "ip:127.0.0.1"

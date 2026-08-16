@@ -14,7 +14,8 @@ def user_or_ip_key(request: Request) -> str:
         token = auth_header[7:]
         try:
             payload = decode_token(token)
-            return f"user:{payload['sub']}"
+            if payload.get("type") == "access":
+                return f"user:{payload['sub']}"
         except JWTError:
             pass
     return f"ip:{get_remote_address(request)}"
