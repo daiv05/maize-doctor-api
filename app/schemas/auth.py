@@ -24,3 +24,16 @@ class TokenPair(CamelModel):
     user: UserOut
     access_token: str
     refresh_token: str
+
+
+class RefreshRequest(CamelModel):
+    refresh_token: str
+
+
+class LogoutRequest(CamelModel):
+    refresh_token: str
+
+
+class RefreshedTokens(CamelModel):
+    access_token: str
+    refresh_token: str

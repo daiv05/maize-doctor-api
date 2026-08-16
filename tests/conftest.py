@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
+from app.core.rate_limit import limiter
 from app.db import get_db
 from app.main import app
 from app.models import app_release, contribution, correction, user  # noqa: F401
@@ -44,6 +45,7 @@ async def db_session() -> AsyncIterator[AsyncSession]:
 
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+    limiter.reset()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

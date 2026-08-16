@@ -3,10 +3,25 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import limiter
-from app.core.security import create_access_token, create_refresh_token, hash_password, hash_token, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_token,
+    utcnow,
+    verify_password,
+)
 from app.db import get_db
 from app.models.user import RefreshToken, User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenPair, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    LogoutRequest,
+    RefreshedTokens,
+    RefreshRequest,
+    RegisterRequest,
+    TokenPair,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,3 +58,28 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
 
     access_token, refresh_token = await _issue_tokens(db, user)
     return TokenPair(user=UserOut.model_validate(user), access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/refresh", response_model=RefreshedTokens)
+@limiter.limit("10/minute")
+async def refresh(request: Request, payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -> RefreshedTokens:
+    token_hash = hash_token(payload.refresh_token)
+    stored = await db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+
+    if stored is None or stored.revoked_at is not None or stored.expires_at < utcnow():
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+    stored.revoked_at = utcnow()
+    user = await db.get(User, stored.user_id)
+
+    access_token, new_refresh_token = await _issue_tokens(db, user)
+    return RefreshedTokens(access_token=access_token, refresh_token=new_refresh_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(payload: LogoutRequest, db: AsyncSession = Depends(get_db)) -> None:
+    token_hash = hash_token(payload.refresh_token)
+    stored = await db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    if stored is not None:
+        stored.revoked_at = utcnow()
+        await db.commit()
