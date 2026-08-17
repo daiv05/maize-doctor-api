@@ -59,13 +59,17 @@ async def create_contribution(
     db.add(contribution)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
         existing = await db.scalar(
             select(DatasetContribution).where(
                 DatasetContribution.user_id == user_id, DatasetContribution.client_id == client_id
             )
         )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not save contribution"
+            ) from exc
         response.status_code = status.HTTP_200_OK
         return ContributionOut.model_validate(existing)
 

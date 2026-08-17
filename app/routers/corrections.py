@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,11 +44,15 @@ async def create_correction(
     db.add(correction)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await db.rollback()
         existing = await db.scalar(
             select(Correction).where(Correction.user_id == user_id, Correction.client_id == payload.client_id)
         )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not save correction"
+            ) from exc
         response.status_code = status.HTTP_200_OK
         return CorrectionOut.model_validate(existing)
 
