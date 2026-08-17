@@ -18,6 +18,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     """Keeps unhandled failures on the API's `{"detail": ...}` JSON contract."""
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+
 app.include_router(auth.router)
 app.include_router(corrections.router)
 app.include_router(contributions.router)
