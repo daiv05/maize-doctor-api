@@ -16,6 +16,29 @@ class FileTooLargeError(Exception):
     pass
 
 
+_EXTENSION_BY_FORMAT = {
+    "JPEG": ".jpg",
+    "PNG": ".png",
+    "WEBP": ".webp",
+    "GIF": ".gif",
+    "BMP": ".bmp",
+    "TIFF": ".tif",
+}
+
+
+def _extension_for(image_format: str | None) -> str:
+    """
+    Maps a PIL-detected image format to the extension the file is saved under.
+
+    @param {str|None} image_format Format reported by PIL, never client-supplied.
+    @returns {str} Lowercase extension including the leading dot.
+    @throws {InvalidImageError} If PIL could not identify the format.
+    """
+    if not image_format:
+        raise InvalidImageError("Uploaded file is not a valid image")
+    return _EXTENSION_BY_FORMAT.get(image_format, f".{image_format.lower()}")
+
+
 async def save_upload_image(upload: UploadFile, subdir: str) -> str:
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
     if upload.size is not None and upload.size > max_bytes:
@@ -27,12 +50,12 @@ async def save_upload_image(upload: UploadFile, subdir: str) -> str:
 
     try:
         with Image.open(io.BytesIO(contents)) as image:
+            image_format = image.format
             image.verify()
     except (UnidentifiedImageError, OSError) as exc:
         raise InvalidImageError("Uploaded file is not a valid image") from exc
 
-    extension = Path(upload.filename or "").suffix or ".jpg"
-    filename = f"{uuid.uuid4()}{extension}"
+    filename = f"{uuid.uuid4()}{_extension_for(image_format)}"
     target_dir = Path(settings.upload_dir) / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / filename

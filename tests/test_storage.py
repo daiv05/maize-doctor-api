@@ -27,6 +27,19 @@ async def test_save_valid_image_returns_path_and_writes_file(tmp_path, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_extension_comes_from_detected_format_not_filename(tmp_path, monkeypatch):
+    """The saved extension must be derived from PIL's detected format, never
+    from the attacker-controlled (and unbounded) client filename."""
+    monkeypatch.setattr("app.storage.settings.upload_dir", str(tmp_path))
+    upload = _make_png_upload(filename="../payload" + "x" * 600 + ".exe")
+
+    path = await save_upload_image(upload, subdir="dataset-contributions")
+
+    assert path.endswith(".png")
+    assert "payload" not in path
+
+
+@pytest.mark.asyncio
 async def test_corrupt_image_raises_invalid_image_error(tmp_path, monkeypatch):
     monkeypatch.setattr("app.storage.settings.upload_dir", str(tmp_path))
     upload = UploadFile(filename="broken.png", file=io.BytesIO(b"not a real image"))
