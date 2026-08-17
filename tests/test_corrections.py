@@ -113,6 +113,48 @@ async def test_replaying_same_client_id_is_idempotent(client):
 
 
 @pytest.mark.asyncio
+async def test_over_length_note_returns_422(client):
+    """`note` is String(1000); MySQL runs STRICT_TRANS_TABLES, so an unvalidated
+    over-length value used to raise DataError and surface as a 500."""
+    token = await _register_and_get_token(client, "farmer3@example.com")
+
+    response = await client.post(
+        "/corrections",
+        json={
+            "clientId": "local-3",
+            "scanId": "scan-3",
+            "observedLabel": "common_rust",
+            "note": "x" * 1500,
+            "status": "pending",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_unknown_status_returns_422(client):
+    token = await _register_and_get_token(client, "farmer4@example.com")
+
+    response = await client.post(
+        "/corrections",
+        json={
+            "clientId": "local-4",
+            "scanId": "scan-4",
+            "observedLabel": "common_rust",
+            "note": None,
+            "status": "x" * 50,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_concurrent_same_client_id_race_recovers_via_integrity_error(race_client, monkeypatch):
     """
     Deterministically reproduces the check-then-act race: two requests with the

@@ -1,14 +1,17 @@
 from datetime import datetime
+from typing import Literal
+
+from pydantic import Field
 
 from app.schemas.base import CamelModel
 
 
 class CorrectionIn(CamelModel):
-    client_id: str
-    scan_id: str
-    observed_label: str
-    note: str | None = None
-    status: str = "pending"
+    client_id: str = Field(max_length=36)
+    scan_id: str = Field(max_length=36)
+    observed_label: str = Field(max_length=64)
+    note: str | None = Field(default=None, max_length=1000)
+    status: Literal["pending", "reviewed"] = "pending"
     created_at: datetime
 
 

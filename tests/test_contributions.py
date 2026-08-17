@@ -136,6 +136,28 @@ async def test_corrupt_image_returns_422(client, tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_over_length_note_returns_422(client, tmp_path, monkeypatch):
+    """`note` is String(1000); MySQL runs STRICT_TRANS_TABLES, so an unvalidated
+    over-length value used to raise DataError and surface as a 500."""
+    monkeypatch.setattr("app.storage.settings.upload_dir", str(tmp_path))
+    token = await _register_and_get_token(client, "grower4@example.com")
+
+    response = await client.post(
+        "/dataset-contributions",
+        data={
+            "clientId": "local-4",
+            "label": "common_rust",
+            "note": "x" * 1500,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        },
+        files={"image": ("leaf.png", _png_bytes(), "image/png")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_concurrent_same_client_id_race_recovers_via_integrity_error(race_client, tmp_path, monkeypatch):
     """
     Deterministically reproduces the check-then-act race: two requests with the

@@ -22,9 +22,9 @@ router = APIRouter(prefix="/dataset-contributions", tags=["contributions"])
 async def create_contribution(
     request: Request,
     response: Response,
-    client_id: str = Form(..., alias="clientId"),
-    label: str = Form(...),
-    note: str | None = Form(None),
+    client_id: str = Form(..., alias="clientId", max_length=36),
+    label: str = Form(..., max_length=64),
+    note: str | None = Form(default=None, max_length=1000),
     created_at: datetime = Form(..., alias="createdAt"),
     image: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
