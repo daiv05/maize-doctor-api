@@ -14,6 +14,18 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def to_naive_utc(value: datetime) -> datetime:
+    """
+    Normalizes a client-supplied timestamp for storage in a naive DateTime column.
+
+    @param {datetime} value Aware or naive timestamp; naive values are assumed UTC.
+    @returns {datetime} Equivalent instant expressed as naive UTC.
+    """
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 

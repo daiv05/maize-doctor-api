@@ -135,6 +135,50 @@ async def test_over_length_note_returns_422(client):
 
 
 @pytest.mark.asyncio
+async def test_non_utc_created_at_is_converted_to_utc(client):
+    """10:00 at -06:00 is 16:00 UTC; the old `.replace(tzinfo=None)` stored 10:00."""
+    token = await _register_and_get_token(client, "farmer5@example.com")
+
+    response = await client.post(
+        "/corrections",
+        json={
+            "clientId": "local-5",
+            "scanId": "scan-5",
+            "observedLabel": "common_rust",
+            "note": None,
+            "status": "pending",
+            "createdAt": "2026-08-16T10:00:00-06:00",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    assert datetime.fromisoformat(response.json()["createdAt"]) == datetime(2026, 8, 16, 16, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_naive_created_at_is_stored_verbatim_as_utc(client):
+    """A timestamp with no offset is taken as UTC rather than as server-local time."""
+    token = await _register_and_get_token(client, "farmer6@example.com")
+
+    response = await client.post(
+        "/corrections",
+        json={
+            "clientId": "local-6",
+            "scanId": "scan-6",
+            "observedLabel": "common_rust",
+            "note": None,
+            "status": "pending",
+            "createdAt": "2026-08-16T10:00:00",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    assert datetime.fromisoformat(response.json()["createdAt"]) == datetime(2026, 8, 16, 10, 0, 0)
+
+
+@pytest.mark.asyncio
 async def test_unknown_status_returns_422(client):
     token = await _register_and_get_token(client, "farmer4@example.com")
 

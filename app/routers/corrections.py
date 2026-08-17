@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
 from app.core.rate_limit import limiter, user_or_ip_key
-from app.core.security import utcnow
+from app.core.security import to_naive_utc, utcnow
 from app.db import get_db
 from app.models.correction import Correction
 from app.models.user import User
@@ -38,7 +38,7 @@ async def create_correction(
         observed_label=payload.observed_label,
         note=payload.note,
         status=payload.status,
-        created_at=payload.created_at.replace(tzinfo=None),
+        created_at=to_naive_utc(payload.created_at),
         received_at=utcnow(),
     )
     db.add(correction)

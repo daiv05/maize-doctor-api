@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
 from app.core.rate_limit import limiter, user_or_ip_key
-from app.core.security import utcnow
+from app.core.security import to_naive_utc, utcnow
 from app.db import get_db
 from app.models.contribution import DatasetContribution
 from app.models.user import User
@@ -53,7 +53,7 @@ async def create_contribution(
         image_path=image_path,
         label=label,
         note=note,
-        created_at=created_at.replace(tzinfo=None),
+        created_at=to_naive_utc(created_at),
         received_at=utcnow(),
     )
     db.add(contribution)
