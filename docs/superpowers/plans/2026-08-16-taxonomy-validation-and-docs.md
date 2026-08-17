@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close two gaps found in a cross-repo audit against `corn-leaf-desease-project` (the ML pipeline) and `maize-doctor-app`: (1) `corrections.observed_label` and `dataset_contributions.label` currently accept any free-text string up to 64 chars, with nothing tying them to the ML pipeline's 9-class taxonomy, so a future class rename (this has already happened once — `northern_leaf_blight` → `northern_corn_leaf_blight`) can silently poison the DB with stale label strings; (2) nothing documents what base URL the mobile app should actually point at, beyond the local `docker-compose.yml` port.
+**Goal:** Close two gaps found in a cross-repo audit against `maize-doctor-classifier` (the ML pipeline) and `maize-doctor-app`: (1) `corrections.observed_label` and `dataset_contributions.label` currently accept any free-text string up to 64 chars, with nothing tying them to the ML pipeline's 9-class taxonomy, so a future class rename (this has already happened once — `northern_leaf_blight` → `northern_corn_leaf_blight`) can silently poison the DB with stale label strings; (2) nothing documents what base URL the mobile app should actually point at, beyond the local `docker-compose.yml` port.
 
 **Architecture:** Add a single `app/constants.py` module mirroring the ML pipeline's canonical 9-class list (there is no shared package across these repos/languages, so this is a deliberately duplicated, clearly-commented source of truth — see Global Constraints), and validate both label fields against it. Then add a short, concrete "how the app finds this API" section to the README.
 
 **Tech Stack:** Python 3.12, FastAPI, Pydantic v2, pytest + httpx, MySQL via Docker Compose (existing test setup).
 
-**Spec:** `docs/superpowers/specs/2026-08-16-maize-doctor-api-design.md`. Companion plans (independent, not a dependency): `corn-leaf-desease-project/docs/superpowers/plans/2026-08-16-mobile-handoff-hardening.md`, `maize-doctor-app/docs/superpowers/plans/2026-08-16-fix-sync-client-and-remote-auth.md`.
+**Spec:** `docs/superpowers/specs/2026-08-16-maize-doctor-api-design.md`. Companion plans (independent, not a dependency): `maize-doctor-classifier/docs/superpowers/plans/2026-08-16-mobile-handoff-hardening.md`, `maize-doctor-app/docs/superpowers/plans/2026-08-16-fix-sync-client-and-remote-auth.md`.
 
 ## Global Constraints
 
-- The canonical 9-class list and order lives in `corn-leaf-desease-project/config/dataset.yaml -> dataset.classes`. This repo has no mechanism to import that file (different language, different repo, no shared package registry) — `app/constants.py` is a manually-synced mirror. **Order does not matter here** (this repo only ever checks set membership, never indexes by position), but the exact strings must match byte-for-byte.
+- The canonical 9-class list and order lives in `maize-doctor-classifier/config/dataset.yaml -> dataset.classes`. This repo has no mechanism to import that file (different language, different repo, no shared package registry) — `app/constants.py` is a manually-synced mirror. **Order does not matter here** (this repo only ever checks set membership, never indexes by position), but the exact strings must match byte-for-byte.
 - Tests in this repo run against a real MySQL instance via Docker Compose, never mocked/sqlite — see README's "Running tests" section. Every test step in this plan assumes `docker compose up -d mysql` has already been run once and stays running.
 - Existing idempotency/validation tests in `tests/test_corrections.py` and `tests/test_contributions.py` follow a fixed pattern: register a user inline via `_register_and_get_token`, then assert on status code. New tests must follow the same pattern, not introduce a new one.
 
@@ -94,7 +94,7 @@ Create `app/constants.py`:
 
 ```python
 """
-Espejo manual de `corn-leaf-desease-project/config/dataset.yaml -> dataset.classes`.
+Espejo manual de `maize-doctor-classifier/config/dataset.yaml -> dataset.classes`.
 
 No hay forma de importar ese archivo desde este repo (proyecto Python distinto, sin
 paquete compartido), asi que esta lista se mantiene sincronizada a mano. El orden aqui
