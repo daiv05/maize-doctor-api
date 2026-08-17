@@ -37,6 +37,17 @@ INSERT INTO app_releases (id, platform, version_code, version_name, min_supporte
 VALUES (UUID(), 'android', 11, '1.3.0', 8, 'https://example.com/app-1.3.0.apk', 'Bug fixes', NOW(), TRUE);
 ```
 
+## Deployment notes
+
+Rate limiting is in-memory and keys on the client's socket address, which has two consequences:
+
+- **Behind a reverse proxy**, every request appears to come from the proxy, so one client's bursts
+  would exhaust the limit for everyone. Run uvicorn with
+  `--proxy-headers --forwarded-allow-ips=<proxy-ip>` so `X-Forwarded-For` is trusted and the limits
+  key per real client.
+- **Keep it at one worker.** The Dockerfile runs a single uvicorn worker on purpose: each worker
+  holds its own counters, so N workers silently multiply every documented limit by N.
+
 ## Full stack via Docker Compose
 
 ```bash
