@@ -4,6 +4,7 @@ import pytest
 from fastapi import UploadFile
 from PIL import Image
 
+from app.config import settings
 from app.storage import FileTooLargeError, InvalidImageError, save_upload_image
 
 
@@ -31,6 +32,23 @@ async def test_corrupt_image_raises_invalid_image_error(tmp_path, monkeypatch):
     upload = UploadFile(filename="broken.png", file=io.BytesIO(b"not a real image"))
 
     with pytest.raises(InvalidImageError):
+        await save_upload_image(upload, subdir="dataset-contributions")
+
+
+@pytest.mark.asyncio
+async def test_declared_size_over_limit_is_rejected_before_reading(tmp_path, monkeypatch):
+    """The part's declared size is checked first, so an oversized body is never
+    materialized in memory. The payload here is tiny, so only that early check
+    can raise."""
+    monkeypatch.setattr("app.storage.settings.upload_dir", str(tmp_path))
+    buffer = io.BytesIO()
+    Image.new("RGB", (32, 32), color="green").save(buffer, format="PNG")
+    buffer.seek(0)
+    upload = UploadFile(
+        filename="huge.png", file=buffer, size=settings.max_upload_size_mb * 1024 * 1024 + 1
+    )
+
+    with pytest.raises(FileTooLargeError):
         await save_upload_image(upload, subdir="dataset-contributions")
 
 

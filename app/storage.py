@@ -18,6 +18,9 @@ class FileTooLargeError(Exception):
 
 async def save_upload_image(upload: UploadFile, subdir: str) -> str:
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    if upload.size is not None and upload.size > max_bytes:
+        raise FileTooLargeError(f"File exceeds {settings.max_upload_size_mb}MB limit")
+
     contents = await upload.read()
     if len(contents) > max_bytes:
         raise FileTooLargeError(f"File exceeds {settings.max_upload_size_mb}MB limit")
