@@ -31,7 +31,7 @@
 - Produces: `app.constants.DIAGNOSIS_LABELS: tuple[str, ...]` — the frozen set of 9 valid class strings.
 - Consumes: nothing new from other tasks.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_corrections.py`, right after `test_unknown_status_returns_422`:
 
@@ -78,7 +78,7 @@ async def test_unknown_label_returns_422(client, tmp_path, monkeypatch):
     assert response.status_code == 422
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 ```bash
@@ -88,7 +88,7 @@ pytest tests/test_corrections.py::test_unknown_observed_label_returns_422 tests/
 ```
 Expected: both FAIL with `assert 201 == 422` (the bogus label is currently accepted).
 
-- [ ] **Step 3: Create the constants module**
+- [x] **Step 3: Create the constants module**
 
 Create `app/constants.py`:
 
@@ -115,7 +115,7 @@ DIAGNOSIS_LABELS: tuple[str, ...] = (
 )
 ```
 
-- [ ] **Step 4: Validate `observed_label` in `CorrectionIn`**
+- [x] **Step 4: Validate `observed_label` in `CorrectionIn`**
 
 In `app/schemas/correction.py`, change the imports at the top from:
 
@@ -152,7 +152,7 @@ Then, inside `CorrectionIn`, immediately after the `observed_label: str = Field(
         return value
 ```
 
-- [ ] **Step 5: Validate `label` in the contributions router**
+- [x] **Step 5: Validate `label` in the contributions router**
 
 In `app/routers/contributions.py`, add the import:
 
@@ -170,17 +170,17 @@ Then, inside `create_contribution`, immediately after the function signature's c
         )
 ```
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `pytest tests/test_corrections.py tests/test_contributions.py -v`
 Expected: all PASS, including the 2 new tests and every pre-existing test (no regressions — `common_rust`/`gray_leaf_spot`/`healthy` used throughout the existing suite are all valid members of `DIAGNOSIS_LABELS`).
 
-- [ ] **Step 7: Run the full test suite**
+- [x] **Step 7: Run the full test suite**
 
 Run: `pytest -v`
 Expected: all PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/constants.py app/schemas/correction.py app/routers/contributions.py tests/test_corrections.py tests/test_contributions.py
@@ -197,7 +197,7 @@ git commit -m "feat(validation): restrict observed_label/label to the ML pipelin
 **Interfaces:**
 - None (documentation-only).
 
-- [ ] **Step 1: Add a base-URL section to the README**
+- [x] **Step 1: Add a base-URL section to the README**
 
 In `README.md`, insert a new section right after `## Local development` (before `## Running tests`):
 
@@ -212,14 +212,46 @@ The app reads the base URL from `EXPO_PUBLIC_API_URL` (see that repo's `.env`). 
 - **Staging/production**: no such deployment exists yet as of this API's v1 scope — when one does, document its URL here instead of leaving `EXPO_PUBLIC_API_URL` to be guessed per-developer.
 ```
 
-- [ ] **Step 2: Verify the README renders sensibly**
+- [x] **Step 2: Verify the README renders sensibly**
 
 Run: `git diff README.md`
 Expected: a clean, well-formed markdown insertion with no broken headers (visually confirm the new `##` section doesn't collide with the existing `## Running tests` header immediately after it).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md
 git commit -m "docs: document how maize-doctor-app should reach this API locally"
 ```
+
+
+---
+
+## Execution record (2026-08-18)
+
+Executed directly on `main`. Both tasks implemented and committed; suite **47 passed** (baseline was 45 + the 2 new tests, no regressions).
+
+### Environment prerequisite discovered during execution
+
+This repo had **no virtualenv**. The machine's default Python is **3.14.4**, and `pip install -r requirements-dev.txt` fails under it: `pillow==10.4.0` and `pydantic-core` (via `pydantic==2.9.2`) have no wheels for 3.14 and fall back to compiling from source. Python **3.12** (this project's stated target) is not installed either; **3.13.13** installs every pin cleanly and was used:
+
+```bash
+py -3.13 -m venv .venv313
+./.venv313/Scripts/python -m pip install -r requirements-dev.txt
+docker compose up -d mysql
+docker exec maize-doctor-api-mysql-1 mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS maize_doctor_test;"
+DATABASE_URL="mysql+aiomysql://root:root@localhost:3306/maize_doctor_test" ./.venv313/Scripts/python -m pytest -q
+```
+
+The `maize_doctor_test` database must be created manually — `docker-compose.yml` only provisions `maize_doctor`, while `conftest.py` runs the real Alembic migrations against the test database. **No pins were changed.**
+
+### Verification beyond the plan's steps
+
+- All **9** canonical classes are accepted by `CorrectionIn`; rejected variants include `roya_comun`, the historically renamed `northern_leaf_blight`, case variants (`Common_Rust`), whitespace-padded (`'common_rust '`), empty string, and `healthy;DROP`.
+- `app/constants.py` was diffed programmatically against `maize-doctor-classifier/config/dataset.yaml -> dataset.classes`: exact set match, nothing missing or extra.
+- Cross-checked `maize-doctor-app/src/content/diagnosis.ts`: the app's 9 classes match the same set exactly, so the new 422s cannot break the app's sync path.
+- README claims verified against the code: no CORS layer exists anywhere in `app/`, `docker-compose.yml` does expose `"8000:8000"`, and the referenced spec file exists.
+
+### Addition beyond the plan's text
+
+Task 2's README section gained one closing line noting that leaving `EXPO_PUBLIC_API_URL` unset is a *supported* configuration (the app falls back to `MockSyncClient` and stays fully usable offline), so the section is not misread as implying the app requires a backend.
