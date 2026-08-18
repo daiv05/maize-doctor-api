@@ -18,6 +18,17 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+## Pointing `maize-doctor-app` at this API
+
+The app reads the base URL from `EXPO_PUBLIC_API_URL` (see that repo's `.env`). This API has no CORS layer by design (`docs/superpowers/specs/2026-08-16-maize-doctor-api-design.md`) because the app calls it directly via `fetch`, not from a browser — so any reachable host:port works, there's nothing to allow-list.
+
+- **Android emulator** talking to a server on the same host machine: `http://10.0.2.2:8000` (`localhost` from inside the emulator refers to the emulator itself, not the host).
+- **Physical device** on the same network as the dev machine: `http://<dev-machine-LAN-IP>:8000` — find the IP with `ipconfig` (Windows) and make sure `docker compose up` is exposing port 8000 on all interfaces (it already does, per `docker-compose.yml`'s `ports: ["8000:8000"]`).
+- **iOS simulator**: `http://localhost:8000` works as-is (the simulator shares the host's network namespace).
+- **Staging/production**: no such deployment exists yet as of this API's v1 scope — when one does, document its URL here instead of leaving `EXPO_PUBLIC_API_URL` to be guessed per-developer.
+
+Leaving `EXPO_PUBLIC_API_URL` unset is a supported configuration, not a broken one: the app falls back to its `MockSyncClient` and skips remote sessions entirely, so it stays fully usable offline.
+
 ## Running tests
 
 Tests run against a real MySQL instance (started via Docker Compose), not a mock:
