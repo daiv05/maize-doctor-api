@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants import DIAGNOSIS_LABELS
 from app.core.deps import get_current_user
 from app.core.rate_limit import limiter, user_or_ip_key
 from app.core.security import to_naive_utc, utcnow
@@ -30,6 +31,12 @@ async def create_contribution(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ContributionOut:
+    if label not in DIAGNOSIS_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"label debe ser uno de: {DIAGNOSIS_LABELS}",
+        )
+
     user_id = user.id
     existing = await db.scalar(
         select(DatasetContribution).where(

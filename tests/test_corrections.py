@@ -199,6 +199,26 @@ async def test_unknown_status_returns_422(client):
 
 
 @pytest.mark.asyncio
+async def test_unknown_observed_label_returns_422(client):
+    token = await _register_and_get_token(client, "farmer7@example.com")
+
+    response = await client.post(
+        "/corrections",
+        json={
+            "clientId": "local-7",
+            "scanId": "scan-7",
+            "observedLabel": "roya_comun",
+            "note": None,
+            "status": "pending",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_concurrent_same_client_id_race_recovers_via_integrity_error(race_client, monkeypatch):
     """
     Deterministically reproduces the check-then-act race: two requests with the

@@ -136,6 +136,25 @@ async def test_corrupt_image_returns_422(client, tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unknown_label_returns_422(client, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.storage.settings.upload_dir", str(tmp_path))
+    token = await _register_and_get_token(client, "grower5@example.com")
+
+    response = await client.post(
+        "/dataset-contributions",
+        data={
+            "clientId": "local-5",
+            "label": "roya_comun",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        },
+        files={"image": ("leaf.png", _png_bytes(), "image/png")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_over_length_note_returns_422(client, tmp_path, monkeypatch):
     """`note` is String(1000); MySQL runs STRICT_TRANS_TABLES, so an unvalidated
     over-length value used to raise DataError and surface as a 500."""
