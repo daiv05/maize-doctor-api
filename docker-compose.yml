@@ -6,7 +6,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: maize_doctor
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
@@ -26,10 +26,17 @@ services:
       mysql:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - uploads:/data/uploads
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=172.18.0.1"]
 
 volumes:
   mysql_data:
   uploads:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
