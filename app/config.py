@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     upload_dir: str = "/data/uploads"
     max_upload_size_mb: int = 10
+    release_admin_token: str = ""
 
 
 settings = Settings()
