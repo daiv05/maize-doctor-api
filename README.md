@@ -1,13 +1,28 @@
 # maize-doctor-api
 
-Backend for `maize-doctor-app` (offline-first). Serves exactly two things:
+Backend de `maize-doctor-app` (offline-first). La app funciona completa sin esta API; lo que
+el backend aporta es cuenta de usuario, sincronización opcional y aviso de actualizaciones.
+No se recoge telemetría de escaneos.
 
-1. App-version check (`GET /app-version`) — tells the app whether an update is available/required.
-2. Optional sync when online: `POST /corrections` and `POST /dataset-contributions`. No scan telemetry is collected.
+## Endpoints
 
-See `docs/superpowers/specs/2026-08-16-maize-doctor-api-design.md` for the full design.
+| Método | Ruta | Límite | Autenticación |
+|---|---|---:|---|
+| `GET` | `/health` | - | - |
+| `POST` | `/auth/register` | 5/min | - |
+| `POST` | `/auth/login` | 5/min | - |
+| `POST` | `/auth/refresh` | 10/min | refresh token |
+| `POST` | `/auth/logout` | - | refresh token |
+| `POST` | `/corrections` | 30/min | access token opcional |
+| `POST` | `/dataset-contributions` | 30/min | access token opcional |
+| `GET` | `/app-version` | 60/min | - |
+| `POST` | `/app-releases` | 10/min | `RELEASE_ADMIN_TOKEN` |
 
-## Local development
+`/corrections` y `/dataset-contributions` limitan por usuario cuando llega un access token
+válido y por IP en caso contrario (`app/core/rate_limit.py`), de modo que varios usuarios tras
+la misma NAT no se consumen la cuota entre sí.
+
+## Desarrollo local
 
 ```bash
 cp .env.example .env
@@ -18,20 +33,38 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-## Pointing `maize-doctor-app` at this API
+## Apuntar `maize-doctor-app` a esta API
 
-The app reads the base URL from `EXPO_PUBLIC_API_URL` (see that repo's `.env`). This API has no CORS layer by design (`docs/superpowers/specs/2026-08-16-maize-doctor-api-design.md`) because the app calls it directly via `fetch`, not from a browser — so any reachable host:port works, there's nothing to allow-list.
+La app lee la URL base de `EXPO_PUBLIC_API_URL` (ver el `.env` de ese repositorio). Esta API no
+tiene capa CORS por la simplicidad del prototipo. Cualquier uso en producción debe tener en cuenta esto.
 
-- **Android emulator** talking to a server on the same host machine: `http://10.0.2.2:8000` (`localhost` from inside the emulator refers to the emulator itself, not the host).
-- **Physical device** on the same network as the dev machine: `http://<dev-machine-LAN-IP>:8000` — find the IP with `ipconfig` (Windows) and make sure `docker compose up` is exposing port 8000 on all interfaces (it already does, per `docker-compose.yml`'s `ports: ["8000:8000"]`).
-- **iOS simulator**: `http://localhost:8000` works as-is (the simulator shares the host's network namespace).
-- **Production**: `https://api.maize-doctor.deras.dev`. The app pins this in its `.env.production`, which Expo loads for release builds (see `maize-doctor-app/docs/build-produccion.md`); it is baked into the APK at build time, so changing it requires a rebuild.
+- **Emulador de Android** contra un servidor en la misma máquina: `http://10.0.2.2:8000`
+  (`localhost` dentro del emulador se refiere al emulador, no al anfitrión).
+- **Simulador de iOS**: `http://localhost:8000` funciona tal cual.
+- **Dispositivo físico** en la misma red que la máquina de desarrollo:
+  `http://<IP-LAN-de-la-máquina>:8000`, obtenida con `ipconfig`. Requiere un paso extra:
+  `docker-compose.yml` publica el puerto en `127.0.0.1:8000:8000`, es decir solo en loopback,
+  así que un teléfono de la LAN **no** alcanza el contenedor. Para probar en dispositivo físico,
+  corre uvicorn fuera de Docker escuchando en todas las interfaces:
 
-Leaving `EXPO_PUBLIC_API_URL` unset is a supported configuration, not a broken one: the app falls back to its `MockSyncClient` and skips remote sessions entirely, so it stays fully usable offline.
+  ```bash
+  uvicorn app.main:app --host 0.0.0.0 --port 8000
+  ```
 
-## Running tests
+  Exponer el contenedor a la LAN cambiando esa publicación anula el aislamiento que introdujo
+  `ae3d180`; hazlo solo de forma temporal y en una red de confianza.
+- **Producción**: `https://api.maize-doctor.deras.dev`. La app fija este valor en su
+  `.env.production`, que Expo carga para los builds de release (ver
+  `maize-doctor-app/docs/build-produccion.md`); queda incrustado en el APK al compilar, de modo
+  que cambiarlo exige un rebuild.
 
-Tests run against a real MySQL instance (started via Docker Compose), not a mock:
+Dejar `EXPO_PUBLIC_API_URL` sin definir es una configuración soportada, no un fallo: la app cae
+a su `MockSyncClient`, omite las sesiones remotas y sigue siendo plenamente utilizable offline.
+
+## Pruebas
+
+Las pruebas corren contra una instancia real de MySQL levantada con Docker Compose, no contra un
+mock. El esquema de prueba se construye con Alembic:
 
 ```bash
 docker compose up -d mysql
@@ -39,17 +72,16 @@ $env:DATABASE_URL="mysql+aiomysql://root:root@localhost:3306/maize_doctor_test"
 pytest -v
 ```
 
-## Publishing a new app release
+## Publicar una versión de la app
 
-Normally you don't: `maize-doctor-app`'s `Release APK` workflow builds the APK on every merge
-to `main`, publishes it as a GitHub release asset, and registers it here automatically via
+Normalmente no hace falta: el workflow `Release APK` de `maize-doctor-app` compila el APK en cada merge a `main`, lo publica como asset de una release de GitHub y lo registra aquí llamando a
 `POST /app-releases`.
 
 ### `POST /app-releases`
 
-Guarded by a shared secret in `RELEASE_ADMIN_TOKEN`, sent as `Authorization: Bearer <token>`.
-**The endpoint is closed while that setting is empty** — an unset token rejects everyone rather
-than letting anyone through, so a deployment that never configures it cannot be published to.
+Protegido por un secreto compartido en `RELEASE_ADMIN_TOKEN`, enviado como
+`Authorization: Bearer <token>`. **El endpoint queda cerrado mientras ese ajuste esté vacío**: un token sin configurar rechaza a todos en lugar de dejar pasar a cualquiera, de modo que un
+despliegue que nunca lo configure no puede recibir publicaciones.
 
 ```bash
 curl -X POST https://api.maize-doctor.deras.dev/app-releases \
@@ -65,48 +97,53 @@ curl -X POST https://api.maize-doctor.deras.dev/app-releases \
       }'
 ```
 
-Publishing **deactivates the platform's previous releases**, so exactly one row stays active.
-`GET /app-version` picks the highest active `version_code`, so leaving stale rows active would
-let an older build win after a rollback.
+Publicar **desactiva las releases anteriores de esa plataforma**, de forma que solo queda una
+fila activa. `GET /app-version` elige el `version_code` activo más alto, así que dejar filas
+viejas activas permitiría que un build antiguo ganara después de un rollback.
 
-Rejects: a duplicate `version_code` for the platform (409), a non-`https` `download_url` (422),
-and any `platform` other than `android`/`ios` (422).
+Rechaza: un `version_code` duplicado para la plataforma (409), un `download_url` que no sea
+`https` (422) y cualquier `platform` distinta de `android`/`ios` (422).
 
-### By hand
+### A mano
 
-If you need to insert a row directly (a rollback, or a release built outside CI):
+Para insertar una fila directamente (un rollback, o una release construida fuera de CI):
 
 ```sql
 INSERT INTO app_releases (id, platform, version_code, version_name, min_supported_version_code, download_url, release_notes, published_at, is_active)
 VALUES (UUID(), 'android', 11, '1.3.0', 8, 'https://example.com/app-1.3.0.apk', 'Bug fixes', NOW(), TRUE);
 ```
 
-Notes on the fields, now that the app actually consumes this endpoint
-(`maize-doctor-app/src/api/AppUpdateService.ts`):
+Sobre los campos, tal como los consume la app (`maize-doctor-app/src/api/AppUpdateService.ts`):
 
-- `version_code` must match the `expo.android.versionCode` of the APK you built. The app
-  ignores any release whose `version_code` is not greater than the installed one, so a typo
-  here means the update silently never appears.
-- `min_supported_version_code` is what makes an update **mandatory**: the app shows a dialog
-  with no way out to anyone whose installed `version_code` is below it. Leave it at the
-  oldest version you still want to support; raising it locks those users out of the app
-  until they install the new APK.
-- `download_url` must point at a real, publicly reachable APK — this API does not host the
-  binary. The app opens the URL with `Linking.openURL`.
-- `platform` is matched against React Native's `Platform.OS`, so use `android`/`ios`.
+- `version_code` debe coincidir con el `expo.android.versionCode` del APK compilado. La app
+  ignora cualquier release cuyo `version_code` no sea mayor que el instalado, así que una errata
+  aquí hace que la actualización nunca aparezca, en silencio.
+- `min_supported_version_code` es lo que vuelve **obligatoria** una actualización: la app muestra
+  un diálogo sin salida a quien tenga un `version_code` instalado por debajo de ese valor.
+  Déjalo en la versión más antigua que aún quieras soportar; subirlo deja a esos usuarios fuera
+  de la app hasta que instalen el APK nuevo.
+- `download_url` debe apuntar a un APK real y públicamente alcanzable: esta API no aloja el
+  binario. La app abre la URL con `Linking.openURL`.
+- `platform` se compara contra el `Platform.OS` de React Native, así que usa `android`/`ios`.
 
-## Deployment notes
+## Notas de despliegue
 
-Rate limiting is in-memory and keys on the client's socket address, which has two consequences:
+El rate limiting vive en memoria y se indexa por la dirección del socket del cliente, lo que
+tiene dos consecuencias:
 
-- **Behind a reverse proxy**, every request appears to come from the proxy, so one client's bursts
-  would exhaust the limit for everyone. Run uvicorn with
-  `--proxy-headers --forwarded-allow-ips=<proxy-ip>` so `X-Forwarded-For` is trusted and the limits
-  key per real client.
-- **Keep it at one worker.** The Dockerfile runs a single uvicorn worker on purpose: each worker
-  holds its own counters, so N workers silently multiply every documented limit by N.
+- **Detrás de un proxy inverso**, toda petición parece venir del proxy, así que las ráfagas de un
+  cliente agotarían el límite de todos. `docker-compose.yml` ya arranca uvicorn con
+  `--proxy-headers --forwarded-allow-ips=172.18.0.1`, la puerta de enlace de la red declarada en
+  ese mismo archivo: solo se confía en el `X-Forwarded-For` de ese origen. Si el proxy corre en
+  otra dirección, hay que ajustar ambos valores a la vez.
+- **Un solo worker.** El Dockerfile arranca un único worker de uvicorn a propósito: cada worker
+  mantiene sus propios contadores, de modo que N workers multiplicarían en silencio por N todos
+  los límites documentados.
 
-## Full stack via Docker Compose
+Tanto MySQL como la API se publican en `127.0.0.1` (`ae3d180`). El proxy inverso del anfitrión es
+el único que debería alcanzarlas.
+
+## Stack completo con Docker Compose
 
 ```bash
 docker compose up -d --build
